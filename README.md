@@ -32,7 +32,7 @@ The API currently supports the following Hugging Face model architectures (exten
 
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/PRITHIVSAKTHIUR/ModelResharder-Transformers-FastAPI.git
    cd transformers-model-resharder-api
    ```
 

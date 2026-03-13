@@ -2,6 +2,8 @@
 
 A powerful Gradio web application for downloading, resharding, and re-uploading large Hugging Face models, with built-in optimizations for large Vision-Language (VL) models such as the Qwen family. This intuitive tool is designed to help engineers and researchers easily manage unwieldy model weights by breaking them into smaller, more manageable shards and pushing them directly to either a private or public Hugging Face repository—all from a clean UI.
 
+> Maintains version control and enables the transformation of files from older Transformers versions to newer versions.
+
 ## Features
 
 - **Interactive UI**: Fully built with Gradio, providing an easy-to-use visual interface to configure your source model, target repository, and architecture.

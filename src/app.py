@@ -730,25 +730,20 @@ def main():
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    port = int(os.environ.get("PORT", 7860))
-    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", 8000))
+    # Bind to 0.0.0.0 so it is accessible externally, but display localhost for browser
+    host = os.environ.get("HOST", "0.0.0.0")
+    display_host = "127.0.0.1" if host == "0.0.0.0" else host
 
     print(f"")
     print(f"  ModelResharder-Transformers-FastAPI")
     print(f"  -----------------------------------")
-    print(f"  Server starting on http://{host}:{port}")
-    print(f"  API docs at       http://{host}:{port}/docs")
+    print(f"  Server starting on http://{display_host}:{port}")
+    print(f"  API docs at       http://{display_host}:{port}/docs")
     print(f"")
 
-    from hypercorn.config import Config
-    from hypercorn.asyncio import serve
-
-    config = Config()
-    config.bind = [f"{host}:{port}"]
-    config.workers = 1
-    config.accesslog = "-"
-
-    asyncio.run(serve(app, config))
+    import uvicorn
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":

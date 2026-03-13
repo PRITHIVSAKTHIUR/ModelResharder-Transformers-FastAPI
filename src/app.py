@@ -3,15 +3,15 @@ import os
 import uuid
 import json
 import shutil
-import asyncio
 import importlib
 import threading
+import time
 from datetime import datetime
 from typing import Optional, Dict, List
 from enum import Enum
 
-from quart import Quart, request, jsonify, Response
-from quart_cors import cors
+from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
 from pydantic import BaseModel, Field, ValidationError
 
 from transformers import AutoProcessor
@@ -262,17 +262,17 @@ def _run_reshard(job: Job):
             pass
 
 
-app = Quart(__name__)
-app = cors(app, allow_origin="*")
+app = Flask(__name__)
+CORS(app)
 
 
 @app.route("/", methods=["GET"])
-async def ui():
+def ui():
     return HTML_PAGE
 
 
 @app.route("/api/health", methods=["GET"])
-async def health():
+def health():
     gpu_name = None
     gpu_mem_gb = None
     if torch.cuda.is_available():
@@ -282,7 +282,7 @@ async def health():
         )
     return jsonify({
         "status": "ok",
-        "app": "ModelResharder-Transformers-Quart",
+        "app": "ModelResharder-Transformers-Flask",
         "gpu_available": torch.cuda.is_available(),
         "gpu_name": gpu_name,
         "gpu_memory_gb": gpu_mem_gb,
@@ -291,7 +291,7 @@ async def health():
 
 
 @app.route("/api/architectures", methods=["GET"])
-async def architectures():
+def architectures():
     result = []
     for key, info in SUPPORTED_ARCHITECTURES.items():
         importable = True
@@ -308,8 +308,8 @@ async def architectures():
 
 
 @app.route("/api/reshard", methods=["POST"])
-async def reshard():
-    data = await request.get_json()
+def reshard():
+    data = request.get_json()
     try:
         req = ReshardRequest(**(data or {}))
     except ValidationError as e:
@@ -340,7 +340,10 @@ async def reshard():
     job.log(f"   Architecture  : {req.architecture}")
     job.log(f"   Shard size    : {req.shard_size}")
 
-    app.add_background_task(_run_reshard, job)
+    # Use standard Python threading for background task instead of Quart's background tasks
+    thread = threading.Thread(target=_run_reshard, args=(job,))
+    thread.daemon = True
+    thread.start()
 
     response_data = ReshardResponse(
         job_id=job_id,
@@ -351,7 +354,7 @@ async def reshard():
 
 
 @app.route("/api/status/<job_id>", methods=["GET"])
-async def status(job_id: str):
+def status(job_id: str):
     job = _get_job(job_id)
     if job is None:
         return jsonify({"detail": f"Job '{job_id}' not found"}), 404
@@ -361,12 +364,12 @@ async def status(job_id: str):
 
 
 @app.route("/api/stream/<job_id>", methods=["GET"])
-async def stream(job_id: str):
+def stream(job_id: str):
     job = _get_job(job_id)
     if job is None:
         return jsonify({"detail": f"Job '{job_id}' not found"}), 404
 
-    async def _generate():
+    def _generate():
         sent = 0
         while True:
             with job._lock:
@@ -391,7 +394,7 @@ async def stream(job_id: str):
                 yield f"data: {payload}\n\n"
                 return
 
-            await asyncio.sleep(0.8)
+            time.sleep(0.8)
 
     return Response(
         _generate(),
@@ -401,7 +404,7 @@ async def stream(job_id: str):
 
 
 @app.route("/api/jobs", methods=["GET"])
-async def list_jobs():
+def list_jobs():
     with _jobs_lock:
         items = list(_jobs.values())
     items.sort(key=lambda j: j.created_at, reverse=True)
@@ -409,7 +412,7 @@ async def list_jobs():
 
 
 @app.route("/api/jobs/<job_id>", methods=["DELETE"])
-async def delete_job(job_id: str):
+def delete_job(job_id: str):
     with _jobs_lock:
         job = _jobs.get(job_id)
         if job is None:
@@ -426,7 +429,7 @@ HTML_PAGE = r"""
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ModelResharder - Transformers Quart</title>
+<title>ModelResharder - Transformers Flask</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -569,7 +572,7 @@ HTML_PAGE = r"""
 </head>
 <body>
 <header>
-  <h1>ModelResharder - Transformers Quart</h1>
+  <h1>ModelResharder - Transformers Flask</h1>
   <p>Download - Reshard - Upload HuggingFace models with custom shard sizes</p>
   <span id="gpu-badge"></span>
 </header>
@@ -730,13 +733,13 @@ def main():
     display_host = "127.0.0.1" if host == "0.0.0.0" else host
 
     print(f"")
-    print(f"  ModelResharder-Transformers-Quart")
+    print(f"  ModelResharder-Transformers-Flask")
     print(f"  ---------------------------------")
     print(f"  Server starting on http://{display_host}:{port}")
     print(f"")
 
-    import uvicorn
-    uvicorn.run("src.app:app", host=host, port=port)
+    # Run the standard WSGI Flask dev server
+    app.run(host=host, port=port, threaded=True)
 
 
 if __name__ == "__main__":

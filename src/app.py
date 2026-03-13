@@ -191,7 +191,7 @@ def _run_reshard(job: Job):
         job.log("[OK] Processor loaded")
 
         arch_label = SUPPORTED_ARCHITECTURES[architecture]["label"]
-        job.log(f"Loading model  [{architecture} -- {arch_label}]")
+        job.log(f"Loading model [{architecture} -- {arch_label}]")
         job.log(f"   Source : {source_model}")
 
         ModelClass = get_model_class(architecture)
@@ -726,13 +726,30 @@ function setStatus(kind, text) {
 """
 
 
-if __name__ == "__main__":
-    import uvicorn
+def main():
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 7860)),
-        workers=1,
-        log_level="info",
-    )
+    port = int(os.environ.get("PORT", 7860))
+    host = os.environ.get("HOST", "127.0.0.1")
+
+    print(f"")
+    print(f"  ModelResharder-Transformers-FastAPI")
+    print(f"  -----------------------------------")
+    print(f"  Server starting on http://{host}:{port}")
+    print(f"  API docs at       http://{host}:{port}/docs")
+    print(f"")
+
+    from hypercorn.config import Config
+    from hypercorn.asyncio import serve
+
+    config = Config()
+    config.bind = [f"{host}:{port}"]
+    config.workers = 1
+    config.accesslog = "-"
+
+    asyncio.run(serve(app, config))
+
+
+if __name__ == "__main__":
+    main()
